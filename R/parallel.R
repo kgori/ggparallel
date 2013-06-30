@@ -4,11 +4,9 @@
 #' categorical data:
 #' hammock plots,  parallel sets plots, common angle plots, and common angle plots with a hammock-like adjustment for line widths. 
 #' 
-#' Parallel sets have been suggested by \cite{kosara:2006} as a visualization technique to incorporate categorical variables into 
-#' a parallel coordinate plot introduced by \cite{wegman:1990} and \cite{inselberg:1985}. The parallel sets implemented here are reduced to representations of neighboring two-dimensional relationships only rather than the hierarchical version originally suggested. 
-#' Both versions, 
-#' however, show perceptual problems with interpreting line widths, leading to potentially wrong conclusions about the data.
-#' The  hammock display, introduced by \cite{schonlau:2003}, and the common angle plots are two approaches at fixing this problem: in Hammock plots the linewidth is adjusted by a factor countering
+#' Parallel sets have been suggested by Kosara et al (2006) as a visualization technique to incorporate categorical variables into 
+#' a parallel coordinate plot (Wegman, Inselberg reference). However, perceptual problems with interpreting line widths,  make this chart type a victim of wrong conclusions.
+#' The  hammock display (Schonlau 2003) and the common angle plots are two approaches at fixing this problem: in Hammock plots the linewidth is adjusted by a factor countering
 #' the strength of the illusion, in the common angle plot all lines are adjusted to show the same angle - making line widths again comparable across ribbons. Additionally, we can also adjust ribbons
 #' in the common angle display for the angle, to make them appear having the same width (or height) across the display. We refer to this method as \code{adj.angle}. 
 #' 
@@ -24,14 +22,67 @@
 #' @param text.angle numeric value in degrees, by which text for labelling is rotated. Ignored if label = FALSE
 #' @param text.offset (vector) of values for offset the labels
 #' @param asp aspect ratio of the plot - it will be set to a default of 1 in the case of hammock plots.
-# @param color value used for color of the boxes.
+#' @param color value used for color of the boxes.
 #' @param ... passed on directly to all of the ggplot2 commands
 #' @return returns a  ggplot2 object that can be plotted directly or used as base layer for additional modifications.
 #' @export
-#' @cite kosara:2006 schonlau:2003 wegman:1990 inselberg:1985
+#' @references
+#' Matthias Schonlau (2003) Visualizing Categorical Data Arising in the Health Sciences
+#' Using Hammock Plots. In Proceedings of the Section on Statistical Graphics of the 
+#' American Statistical Association. \url{http://www.schonlau.net/publication/03jsm_hammockplot.pdf}
 #' 
-#' @example inst/examples/ggparallel-ex.R
- 
+#' Robert Kosara, Fabian Bendix, Helwig Hauser (2006) 
+#' Parallel Sets: Interactive Exploration and Visual Analysis of Categorical Data, 
+#' Transactions on Visualization and Computer Graphics (TVCG), vol. 12, no. 4, pp. 558-568. \url{http://kosara.net/papers/2006/Kosara_TVCG_2006.pdf}
+#' 
+#' @examples
+#' data(mtcars)
+#' ggparallel(list("gear", "cyl"), data=mtcars)
+#' ggparallel(list("gear", "cyl"), data=mtcars, method="hammock")
+#' 
+#' ## combination of common angle plot and hammock adjustment:
+#' ggparallel(list("gear", "cyl"), data=mtcars, method="adj.angle")
+#' 
+#' ## compare with method='parset'
+#' ggparallel(list("gear", "cyl"), data=mtcars, method='parset')
+#' 
+#' ## flip plot and rotate text
+#' ggparallel(list("gear", "cyl"), data=mtcars, text.angle=0) + coord_flip()
+#' 
+#' ## change colour scheme
+#' ggparallel(list("gear", "cyl"), data=mtcars, text.angle=0) + coord_flip() + 
+#'   scale_fill_brewer(palette="Set1") + 
+#'   scale_colour_brewer(palette="Set1")
+#'   
+#' ## example with more than two variables:
+#' titanic <- as.data.frame(Titanic)
+#' ggparallel(names(titanic)[c(1,4,2,1)], order=0, titanic, weight="Freq") + 
+#'   scale_fill_brewer(palette="Paired", guide="none") + 
+#'   scale_colour_brewer(palette="Paired", guide="none")
+#'   
+#' ## hammock plot with same width lines
+#' ggparallel(names(titanic)[c(1,4,2,3)], titanic, weight=1, asp=0.5, method="hammock", ratio=0.2, order=c(0,0)) +
+#' theme( legend.position="none") + 
+#' scale_fill_brewer(palette="Paired") + 
+#' scale_colour_brewer(palette="Paired")
+#' 
+#' ## hammock plot with line widths adjusted by frequency
+#' ggparallel(names(titanic)[c(1,4,2,3)], titanic, weight="Freq", asp=0.5, method="hammock", order=c(0,0)) + 
+#' theme( legend.position="none")
+#' 
+#' \dontrun{
+#' ## biological examples: genes and pathways
+#' data(genes)
+#' genes$chrom <- factor(genes$chrom, levels=c(paste("chr", 1:22, sep=""), "chrX", "chrY"))
+#' ggparallel(list("path", "chrom"), text.offset=c(0.03, 0,-0.03), data = genes,  width=0.1, order=c(1,0), text.angle=0, color="white",
+#'    factorlevels =  c(sapply(unique(genes$chrom), as.character), 
+#'      unique(genes$path))) + 
+#'    scale_fill_manual(values = c(   brewer.pal("YlOrRd", n = 9), rep("grey80", 24)), guide="none") + 
+#'    scale_colour_manual(values = c(   brewer.pal("YlOrRd", n = 9), rep("grey80", 24)), guide="none") +
+#'    coord_flip()
+#' }
+
+
 ggparallel <- function(vars=list(), data, weight=NULL, method="angle", 
       alpha=0.5, width=0.25, order = 1,  ratio=NULL, asp=NULL, label=TRUE, 
       text.angle=90, text.offset=NULL, text.colour=NULL, text.size=4, 
@@ -50,25 +101,24 @@ ggparallel <- function(vars=list(), data, weight=NULL, method="angle",
   data$weight <- weight
   if (is.null(weight)) data$weight <- 1
   if (is.character(weight)) data$weight <- data[,weight]
-  if (is.null(ratio)) ratio <- nrow(data)/sum(data$weight)
   
   ## if ordering is selected, organize x and y axis by weight
   ## make order a vector of length length(vars)
   order <- rep(order, length=length(vars))
   for (i in 1:length(vars)){
-	if (! is.factor(data[,vars[i]])) 
-  		data[,vars[i]] <- factor(data[,vars[i]])
+  if (! is.factor(data[,vars[i]])) 
+      data[,vars[i]] <- factor(data[,vars[i]])
 
     if (order[i] != 0)
       data[,vars[i]] <- reorder(data[,vars[i]], data$weight, 
                              function(x) if (order[i] > 0) sum(x)
-                             			 else -sum(x)
+                                   else -sum(x)
                              )
   }
   
   llist <- NULL
-  for (i in unique(vars)) { 	
-  	levels(data[,i]) <- paste(i, levels(data[,i]), sep=":")
+  for (i in unique(vars)) {   
+    levels(data[,i]) <- paste(i, levels(data[,i]), sep=":")
     llist <- c(llist, levels(data[,i]))
   }
   if ((method=="hammock"))# | (method=="adj.angle"))
@@ -137,7 +187,7 @@ ggparallel <- function(vars=list(), data, weight=NULL, method="angle",
       r <- geom_ribbon(aes(x=as.numeric(variable)+offset+xid,
                            ymin=value -Freq, 
                            ymax= value, group=id, 
-                      fill=Nodeset, colour=Nodeset),	alpha=alpha, data=dfm)
+                      fill=Nodeset),  alpha=alpha, data=dfm)
     }
     if (method == "angle") {     
       dfm$x <- with(dfm, as.numeric(variable)+offset+xid)
@@ -159,7 +209,7 @@ ggparallel <- function(vars=list(), data, weight=NULL, method="angle",
       dfm3$x <- dfm3$x - dfm3$shiftx
       dfm <- rbind(dfm, dfm3[,-(16:17)])
       r <- geom_ribbon(aes(x=x,ymin=value -Freq, ymax= value, group=id, 
-                            fill=Nodeset, colour=Nodeset), alpha=alpha, data=dfm)
+                            fill=Nodeset), alpha=alpha, data=dfm)
     }
     if (method == "adj.angle") {     
       dfm$x <- with(dfm, as.numeric(variable)+offset+xid)
@@ -185,9 +235,8 @@ ggparallel <- function(vars=list(), data, weight=NULL, method="angle",
 #      plot.asp <- length(vars)/(1.1*sum(data$weight))*asp
 #      qplot(x, ymid, data=dfm, geom=c("line"), alpha=I(0.5), group=id, colour=factor(gear), size=Freq)+scale_size(range=4.2*c(min(dfm$Freq),max(dfm$Freq))) + scale_colour_discrete() + theme(legend.position="none") + ylim(c(0, 1.05*sum(data$weight)))
 #browser()
-      r <- list(geom_line(aes(x=x,y=ymid, group=id, colour=Nodeset, fill=Nodeset, size=Freq), alpha=alpha, data=dfm), range=c(min(dfm$Freq),max(dfm$Freq)))
-      #      r <- list(geom_line(aes(x=x,y=ymid, group=id, colour=Nodeset, size=Freq), alpha=alpha, data=dfm),
-#        scale_size(guide="none", range=ratio*max(dfm$Freq)*c(min(dfm$Freq),max(dfm$Freq)))) #+ scale_colour_discrete()       
+      r <- list(geom_line(aes(x=x,y=ymid, group=id, colour=Nodeset, size=Freq), alpha=alpha, data=dfm),
+        scale_size(guide="none", range=ratio*max(dfm$Freq)*c(min(dfm$Freq),max(dfm$Freq)))) #+ scale_colour_discrete()       
     }
     if (method=="hammock") {
       maxwidth = ratio/2*sum(data$weight)
@@ -202,11 +251,9 @@ ggparallel <- function(vars=list(), data, weight=NULL, method="angle",
       dfm$varn <- as.numeric(dfm$variable)
       dfm <- transform(dfm, 
                        x = min(varn+offset+xid),
-                       xend = max(varn+offset+xid)
+                       xend = max(varn+offset+xid),
+                       tangens = max(midy)-min(midx)
                        )
-      dfm <- ddply(dfm , .(id), transform,
-        tangens = max(midy)-min(midx)
-      )    
       dfm$tangens <- with(dfm, tangens/max(xend-x)*plot.asp)
       dfm$width <- with(dfm, Freq/cos(atan(tangens)))
       dfm$width <- with(dfm, width*maxwidth/max(width))      
@@ -216,7 +263,7 @@ ggparallel <- function(vars=list(), data, weight=NULL, method="angle",
       
       r <- geom_ribbon(aes(x=as.numeric(variable)+offset+xid, 
                            ymin=y-width, ymax=y+width, group=id, 
-                           fill=Nodeset, colour=Nodeset),  alpha=alpha, data=dfm) #, drop=FALSE)
+                           fill=Nodeset),  alpha=alpha, data=dfm) #, drop=FALSE)
     }
     r
   }
@@ -233,39 +280,31 @@ ggparallel <- function(vars=list(), data, weight=NULL, method="angle",
   for (i in 1:(length(vars)-1))
     gr[[i]] <- getRibbons(i,i+1)
 
-  if (method=="adj.angle") {
-    prange <- c(NA,NA)
-    for (i in 1:(length(vars)-1)) {
-      prange <- range(c(prange, gr[[i]][[2]]), na.rm=T)
-      gr[[i]] <- gr[[i]][[1]]
-    }
-    gr[[1]] <-  list(gr[[1]], scale_size(guide="none", range=ratio*prange))
-  }
-  subdata <- data[,c("weight", unlist(vars))]	
+  subdata <- data[,c("weight", unlist(vars))] 
   dfm <- melt(subdata, id.var="weight")
   names(dfm)[3] <- "Nodeset"
   dfm$Nodeset <- factor(dfm$Nodeset, levels=llist)
   
   llabels <- NULL
   if (label) {
-	  label.stats <- ddply(dfm, .(variable, Nodeset), summarize,
-	                       n = length(weight),
-	                       weight=sum(weight)
-	                       )
-	  maxWeight <- sum(label.stats$weight)/length(unique(label.stats$variable))
-	  label.stats$ypos <- cumsum(label.stats$weight)-(as.numeric(label.stats$variable)-1)*maxWeight
-	  label.stats$ypos <- label.stats$ypos-label.stats$weight/2
+    label.stats <- ddply(dfm, .(variable, Nodeset), summarize,
+                         n = length(weight),
+                         weight=sum(weight)
+                         )
+    maxWeight <- sum(label.stats$weight)/length(unique(label.stats$variable))
+    label.stats$ypos <- cumsum(label.stats$weight)-(as.numeric(label.stats$variable)-1)*maxWeight
+    label.stats$ypos <- label.stats$ypos-label.stats$weight/2
 
     if (is.null(text.offset)) text.offset <- 0
-  	label.stats$text.offset <- rep(text.offset, length=nrow(label.stats))
-  	 
-	  varnames <- paste(unlist(vars), sep="|", collapse="|")
-	  label.stats$labels <- gsub(sprintf("(%s):(.*)",varnames),"\\2", as.character(label.stats$Nodeset))
+    label.stats$text.offset <- rep(text.offset, length=nrow(label.stats))
+     
+    varnames <- paste(unlist(vars), sep="|", collapse="|")
+    label.stats$labels <- gsub(sprintf("(%s):(.*)",varnames),"\\2", as.character(label.stats$Nodeset))
     if (is.null(text.colour)) text.colour <- "grey20"
     label.stats$xoffs<-as.numeric(label.stats$variable)+0.01*text.shadow.x.offset+text.offset
     label.stats$yoffs<-label.stats$ypos-0.1*text.shadow.y.offset
     llabels <- list(geom_text(aes(x=as.numeric(variable)+0.01+text.offset, y=ypos, label=labels),
-	                      colour = text.colour, data=label.stats, angle=text.angle, size=text.size))   
+                        colour = text.colour, data=label.stats, angle=text.angle, size=text.size))   
     if (text.shadow) {
       if (is.null(text.shadow.colour)) text.shadow.colour = "grey90"
       llabels[[2]] <- geom_text(aes(x=xoffs, y=yoffs, label=labels),
@@ -274,9 +313,8 @@ ggparallel <- function(vars=list(), data, weight=NULL, method="angle",
   }
   theme.layer <- NULL
   if (!is.null(asp)) theme.layer <- theme(aspect.ratio=asp)
-  ggplot() + xlab("")  + gr + theme.layer + 
-    geom_bar(aes(weight=weight, x=variable, fill=Nodeset, colour=Nodeset),  width=width, data=dfm) +
-            rev(llabels) +
+  ggplot() + geom_bar(aes(weight=weight, x=variable, fill=Nodeset, colour=Nodeset),  width=width, data=dfm) + 
+             xlab("")  + gr + theme.layer + llabels + 
              scale_x_discrete(expand=c(0.1, 0.1)) 
   # theme(drop=FALSE)
 }
