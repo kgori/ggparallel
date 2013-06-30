@@ -31,8 +31,16 @@
 #' @cite kosara:2006 schonlau:2003 wegman:1990 inselberg:1985
 #' 
 #' @example inst/examples/ggparallel-ex.R
-
-ggparallel <- function(vars=list(), data, weight=NULL, method="angle", alpha=0.5, width = 0.25, order = 1,  ratio=NULL, asp = NULL, label = TRUE, text.angle=90, text.offset=NULL, ...) {
+ 
+ggparallel <- function(vars=list(), data, weight=NULL, method="angle", 
+      alpha=0.5, width=0.25, order = 1,  ratio=NULL, asp=NULL, label=TRUE, 
+      text.angle=90, text.offset=NULL, text.colour=NULL, text.size=4, 
+      text.shadow=TRUE, text.shadow.colour=NULL, text.shadow.size=4, 
+      text.shadow.x.offset=0.01, text.shadow.y.offset=0.01, ...) {
+  ### Package requirements
+  require(ggplot2)
+  require(plyr)
+  require(reshape2)
   ### error checking
   vars <- unlist(vars)
   k = length(vars)
@@ -253,16 +261,22 @@ ggparallel <- function(vars=list(), data, weight=NULL, method="angle", alpha=0.5
   	 
 	  varnames <- paste(unlist(vars), sep="|", collapse="|")
 	  label.stats$labels <- gsub(sprintf("(%s):(.*)",varnames),"\\2", as.character(label.stats$Nodeset))
-    llabels <- list(geom_text(aes(x=as.numeric(variable)+text.offset, y=ypos, label=labels),
-	                      colour = "grey20", data=label.stats, angle=text.angle, size=4), 
-	                  geom_text(aes(x=as.numeric(variable)+0.01+text.offset, y=ypos-0.01, label=labels),
-	                      colour = "grey90", data=label.stats, angle=text.angle, size=4)) 
+    if (is.null(text.colour)) text.colour <- "grey20"
+    label.stats$xoffs<-as.numeric(label.stats$variable)+0.01*text.shadow.x.offset+text.offset
+    label.stats$yoffs<-label.stats$ypos-0.1*text.shadow.y.offset
+    llabels <- list(geom_text(aes(x=as.numeric(variable)+0.01+text.offset, y=ypos, label=labels),
+	                      colour = text.colour, data=label.stats, angle=text.angle, size=text.size))   
+    if (text.shadow) {
+      if (is.null(text.shadow.colour)) text.shadow.colour = "grey90"
+      llabels[[2]] <- geom_text(aes(x=xoffs, y=yoffs, label=labels),
+                          colour = text.shadow.colour, data=label.stats, angle=text.angle, size=text.shadow.size) 
+    }
   }
   theme.layer <- NULL
   if (!is.null(asp)) theme.layer <- theme(aspect.ratio=asp)
   ggplot() + xlab("")  + gr + theme.layer + 
     geom_bar(aes(weight=weight, x=variable, fill=Nodeset, colour=Nodeset),  width=width, data=dfm) +
-            llabels + 
+            rev(llabels) +
              scale_x_discrete(expand=c(0.1, 0.1)) 
   # theme(drop=FALSE)
 }
